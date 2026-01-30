@@ -1,7 +1,8 @@
-package categories
+package category
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,11 +30,65 @@ func (h *Handler) categories(w http.ResponseWriter, r *http.Request) error {
 	switch r.Method {
 
 	case http.MethodGet:
-		data, err := h.service.GetAll()
+		// ========================
+		// Pagination
+		// ========================
+		page := 1
+		size := 10
+
+		if v := r.URL.Query().Get("page"); v != "" {
+			page, _ = strconv.Atoi(v)
+		}
+		if v := r.URL.Query().Get("size"); v != "" {
+			size, _ = strconv.Atoi(v)
+		}
+
+		if page < 1 {
+			page = 1
+		}
+		if size < 1 {
+			size = 10
+		}
+		if size > 100 {
+			size = 100
+		}
+
+		offset := (page - 1) * size
+
+		// ========================
+		// Search & Sort
+		// ========================
+		search := r.URL.Query().Get("search")
+		sort := r.URL.Query().Get("sort")
+		order := r.URL.Query().Get("order")
+
+		// ========================
+		// Service call
+		// ========================
+		data, total, err := h.service.GetAll(
+			size,
+			offset,
+			search,
+			sort,
+			order,
+		)
 		if err != nil {
 			return err
 		}
-		return response.JSON(w, http.StatusOK, "success", data)
+
+		totalPage := int(math.Ceil(float64(total) / float64(size)))
+
+		result := response.ListResult[Category]{
+			Data: data,
+			Pagination: response.Pagination{
+				Page:      page,
+				Size:      size,
+				Total:     total,
+				TotalPage: totalPage,
+			},
+		}
+
+		return response.JSON(w, http.StatusOK, "success", result)
 
 	case http.MethodPost:
 		var req Category

@@ -9,3 +9,5 @@ func NewService() *Service {
 func (s *Service) Check() Response {
 	return Response{Status: "UP"}
 }
+
+

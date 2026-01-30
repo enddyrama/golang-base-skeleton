@@ -1,4 +1,4 @@
-package categories
+package product
 
 import (
 	"base-skeleton/internal/shared/middleware"
@@ -8,7 +8,6 @@ import (
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
 func Register(mux *http.ServeMux, h *Handler) {
-	mux.HandleFunc("/api/v1/categories", middleware.Wrap(h.categories))
-	mux.HandleFunc("/api/v1/categories/", middleware.Wrap(h.categoryByID))
-
+	mux.HandleFunc("/api/v1/product", middleware.Wrap(h.product))
+	mux.HandleFunc("/api/v1/product/", middleware.Wrap(h.productByID))
 }

@@ -1,6 +1,9 @@
 package errors
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 type AppError struct {
 	Code    int    `json:"code"`
@@ -23,6 +26,9 @@ func Internal(msg string) *AppError {
 	return &AppError{Code: http.StatusInternalServerError, Message: msg}
 }
 
-func Custom(code int, msg string) *AppError {
-	return &AppError{Code: code, Message: msg}
+func Custom(code int, format string, args ...any) *AppError {
+	return &AppError{
+		Code:    code,
+		Message: fmt.Sprintf(format, args...),
+	}
 }
