@@ -3,7 +3,7 @@ package main
 import (
 	"base-skeleton/config"
 	"base-skeleton/internal/database"
-	"base-skeleton/internal/module/router"
+	router "base-skeleton/internal/module"
 	"log"
 	"net/http"
 )

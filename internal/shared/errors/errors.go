@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// AppError is used for service-level errors
 type AppError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -32,3 +33,8 @@ func Custom(code int, format string, args ...any) *AppError {
 		Message: fmt.Sprintf(format, args...),
 	}
 }
+
+// Global repository errors
+var (
+	ErrNotFound = fmt.Errorf("not found")
+)

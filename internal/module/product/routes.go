@@ -8,6 +8,6 @@ import (
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
 func Register(mux *http.ServeMux, h *Handler) {
-	mux.HandleFunc("/api/v1/product", middleware.Wrap(h.product))
-	mux.HandleFunc("/api/v1/product/", middleware.Wrap(h.productByID))
+	mux.HandleFunc("/api/v1/products", middleware.Wrap(h.product))
+	mux.HandleFunc("/api/v1/products/", middleware.Wrap(h.productByID))
 }
