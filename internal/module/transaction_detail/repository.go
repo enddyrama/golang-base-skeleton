@@ -1,9 +1,14 @@
 package transactiondetail
 
-import "database/sql"
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+)
 
 type Repository interface {
 	InsertTx(tx *sql.Tx, d TransactionDetail) error
+	InsertManyTx(tx *sql.Tx, details []TransactionDetail) error
 	FindByTransactionID(transactionID int64) ([]TransactionDetailResponse, error)
 }
 
@@ -31,6 +36,38 @@ func (r *repository) InsertTx(
 		d.Subtotal,
 	)
 
+	return err
+}
+
+func (r *repository) InsertManyTx(
+	tx *sql.Tx,
+	details []TransactionDetail,
+) error {
+	if len(details) == 0 {
+		return nil
+	}
+
+	valueStrings := make([]string, 0, len(details))
+	valueArgs := make([]interface{}, 0, len(details)*4)
+
+	for i, d := range details {
+		// PostgreSQL parameter placeholders: $1, $2, ...
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d,$%d,$%d,$%d)", i*4+1, i*4+2, i*4+3, i*4+4))
+		valueArgs = append(valueArgs,
+			d.TransactionID,
+			d.ProductID,
+			d.Quantity,
+			d.Subtotal,
+		)
+	}
+
+	stmt := fmt.Sprintf(`
+		INSERT INTO transaction_details
+		(transaction_id, product_id, quantity, subtotal)
+		VALUES %s
+	`, strings.Join(valueStrings, ","))
+
+	_, err := tx.Exec(stmt, valueArgs...)
 	return err
 }
 

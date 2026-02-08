@@ -50,15 +50,14 @@ func (r *repository) CreateTransaction(
 	var (
 		totalAmount int64
 		details     []transactiondetail.TransactionDetailResponse
+		bulkDetails []transactiondetail.TransactionDetail
+		createdAt   time.Time
 	)
 
 	// 1️⃣ lock products, calculate, update stock
 	for _, item := range items {
 
-		p, err := r.productRepo.FindByIDForUpdateTx(
-			tx,
-			item.ProductID,
-		)
+		p, err := r.productRepo.FindByIDForUpdateTx(tx, item.ProductID)
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("product id %d not found", item.ProductID)
 		}
@@ -67,20 +66,13 @@ func (r *repository) CreateTransaction(
 		}
 
 		if p.Stock < item.Quantity {
-			return nil, fmt.Errorf(
-				"insufficient stock for product %d",
-				item.ProductID,
-			)
+			return nil, fmt.Errorf("insufficient stock for product %d", item.ProductID)
 		}
 
 		subtotal := p.Price * item.Quantity
 		totalAmount += subtotal
 
-		if err := r.productRepo.DecreaseStockTx(
-			tx,
-			item.ProductID,
-			item.Quantity,
-		); err != nil {
+		if err := r.productRepo.DecreaseStockTx(tx, item.ProductID, item.Quantity); err != nil {
 			return nil, err
 		}
 
@@ -90,47 +82,43 @@ func (r *repository) CreateTransaction(
 			Quantity:    item.Quantity,
 			Subtotal:    subtotal,
 		})
+
+		bulkDetails = append(bulkDetails, transactiondetail.TransactionDetail{
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
+			Subtotal:  subtotal,
+		})
 	}
 
-	// 2️⃣ create transaction master
 	var transactionID int64
 	err = tx.QueryRow(`
 		INSERT INTO transactions (total_amount)
 		VALUES ($1)
-		RETURNING id
-	`, totalAmount).Scan(&transactionID)
+		RETURNING id, created_at
+	`, totalAmount).Scan(&transactionID, &createdAt)
 	if err != nil {
-		fmt.Println("ERROR scanning transaction id:", err)
 		return nil, err
 	}
-	fmt.Println("transactionID:", transactionID)
 
-	// 3️⃣ insert details
-	for i := range details {
-		if err := r.detailRepo.InsertTx(
-			tx,
-			transactiondetail.TransactionDetail{
-				TransactionID: transactionID,
-				ProductID:     details[i].ProductID,
-				Quantity:      details[i].Quantity,
-				Subtotal:      details[i].Subtotal,
-			},
-		); err != nil {
-			return nil, err
-		}
-
+	for i := range bulkDetails {
+		bulkDetails[i].TransactionID = transactionID
 		details[i].TransactionID = transactionID
 	}
 
-	// 4️⃣ commit
+	if len(bulkDetails) > 0 {
+		if err := r.detailRepo.InsertManyTx(tx, bulkDetails); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
-	// 5️⃣ return response
 	return &Transaction{
 		ID:          transactionID,
 		TotalAmount: totalAmount,
+		CreatedAt:   createdAt,
 		Details:     details,
 	}, nil
 }
@@ -179,7 +167,6 @@ func (r *repository) GetReport(start, end time.Time) (ReportResponse, error) {
 		LIMIT 1
 	`, start, end).Scan(&resp.BestSellingProduct.Name, &resp.BestSellingProduct.Sold)
 
-	// If no transactions exist in the range, return empty
 	if err == sql.ErrNoRows {
 		log.Println("no rows", err)
 		resp.BestSellingProduct.Name = ""
